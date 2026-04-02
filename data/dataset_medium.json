@@ -1,0 +1,50 @@
+[
+    {
+        "id": "1",
+        "text": "I'm not saying you're stupid, but... actually yes, you are",
+        "user_reputation": 0.4,
+        "report_count": 2,
+        "true_label": "toxic",
+        "content_type": "text"
+    },
+    {
+        "id": "2",
+        "text": "This is sarcasm obviously 🙄 but technically it's not toxic",
+        "user_reputation": 0.6,
+        "report_count": 1,
+        "true_label": "safe",
+        "content_type": "text"
+    },
+    {
+        "id": "3",
+        "text": "Some people might find this offensive but it's just an opinion",
+        "user_reputation": 0.5,
+        "report_count": 0,
+        "true_label": "safe",
+        "content_type": "text"
+    },
+    {
+        "id": "4",
+        "text": "I'm just kidding bro, it was a joke",
+        "user_reputation": 0.5,
+        "report_count": 1,
+        "true_label": "safe",
+        "content_type": "text"
+    },
+    {
+        "id": "5",
+        "text": "That's what she said - obviously a joke",
+        "user_reputation": 0.6,
+        "report_count": 0,
+        "true_label": "safe",
+        "content_type": "text"
+    },
+    {
+        "id": "6",
+        "text": "Technically it's not hate speech, just an opinion",
+        "user_reputation": 0.4,
+        "report_count": 2,
+        "true_label": "toxic",
+        "content_type": "text"
+    }
+]

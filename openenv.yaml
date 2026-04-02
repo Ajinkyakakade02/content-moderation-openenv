@@ -1,0 +1,102 @@
+ 
+name: content-moderation-env
+version: 1.0.0
+description: |
+  AI content moderation environment where an agent must decide to ALLOW, FLAG, 
+  or REMOVE user-generated content based on safety policies. Simulates real-world
+  moderation challenges including toxicity detection, ambiguous content, and 
+  large-scale processing with time constraints.
+
+author: Your Team Name
+license: MIT
+
+tasks:
+  - id: easy
+    name: Basic Toxicity Detection
+    description: Detect clearly toxic content (hate speech, nudity, violence) with high accuracy
+    grader: graders.ModerationGrader
+    difficulty: easy
+    max_score: 1.0
+    time_limit_seconds: 30
+    
+  - id: medium
+    name: Ambiguous Content Detection
+    description: Handle sarcasm, mixed language (Hinglish), and context-dependent content
+    grader: graders.ModerationGrader
+    difficulty: medium
+    max_score: 1.0
+    time_limit_seconds: 45
+    
+  - id: hard
+    name: Large-Scale Moderation
+    description: Process 50+ posts with 2-second time limit per decision, balancing precision vs recall
+    grader: graders.ModerationGrader
+    difficulty: hard
+    max_score: 1.0
+    time_limit_seconds: 120
+
+action_space:
+  type: Discrete
+  n: 3
+  mapping:
+    0: ALLOW
+    1: FLAG
+    2: REMOVE
+  description: |
+    ALLOW: Approve content for public visibility
+    FLAG: Send content for human review (24-hour hold)
+    REMOVE: Delete content and issue warning
+
+observation_space:
+  text:
+    type: string
+    max_length: 1000
+    description: The content text to moderate
+  user_reputation:
+    type: float
+    range: [0, 1]
+    description: User trust score (0=spammer, 1=trusted)
+  report_count:
+    type: integer
+    range: [0, 100]
+    description: Number of previous reports on this content
+  policy_summary:
+    type: string
+    max_length: 500
+    description: Current moderation policy guidelines
+  content_type:
+    type: integer
+    range: [0, 3]
+    description: 0=text, 1=image, 2=video, 3=reel
+
+reward_function: |
+  Multi-component reward with partial progress signals:
+  - Correct decision: +1.0
+  - Partial credit for close decisions: +0.3 to +0.5
+  - False negative (allowing harmful): -0.5 to -2.0
+  - False positive (removing safe): -0.2 to -0.5
+  - Efficiency bonus: +0.1 for early decisions
+  - Consistency bonus: +0.05 for stable decisions
+  - Exploration bonus: +0.1 for trying new strategies
+
+deployment:
+  huggingface: true
+  docker: true
+  endpoints:
+    - /reset
+    - /step
+    - /state
+    - /baseline
+    - /grader
+    - /tasks
+
+environment_variables:
+  API_BASE_URL:
+    description: LLM API endpoint
+    required: true
+  MODEL_NAME:
+    description: Model identifier for inference
+    required: true
+  HF_TOKEN:
+    description: Hugging Face API key
+    required: true

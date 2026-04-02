@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocialSphere - AI Content Moderation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        /* Media Type Selector */
+        .media-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f0f0f0;
+            padding: 5px;
+            border-radius: 12px;
+        }
+        
+        .media-btn {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+            color: #666;
+        }
+        
+        .media-btn.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .media-btn:hover:not(.active) {
+            background: #e0e0e0;
+        }
+        
+        /* Input Areas */
+        .input-area {
+            margin-bottom: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .file-input {
+            width: 100%;
+            padding: 40px 20px;
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        
+        .file-input:hover {
+            border-color: #667eea;
+            background: #f5f5f5;
+        }
+        
+        .file-input.drag-over {
+            border-color: #667eea;
+            background: #e8eaff;
+        }
+        
+        .file-input input {
+            display: none;
+        }
+        
+        .preview-container {
+            margin-top: 15px;
+            position: relative;
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 12px;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .preview-video {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 12px;
+            margin: 0 auto;
+        }
+        
+        .remove-preview {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+        
+        .remove-preview:hover {
+            background: #dc3545;
+        }
+        
+        /* Post Button */
+        .post-btn {
+            width: 100%;
+            padding: 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .post-btn:hover:not(:disabled) {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .post-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Result */
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .result.show {
+            display: block;
+        }
+        
+        .result.allowed {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+        
+        .result.flagged {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+        
+        .result.removed {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+        
+        .result-icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .result-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .result-message {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .harmful-score {
+            background: rgba(0,0,0,0.05);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        
+        .violations {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .violations ul {
+            margin-top: 8px;
+            padding-left: 20px;
+        }
+        
+        .violations li {
+            margin: 5px 0;
+        }
+        
+        /* Examples */
+        .examples {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        
+        .examples h4 {
+            margin-bottom: 10px;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .example-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .example-btn {
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .example-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        /* Status Badge */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 10px;
+            background: #f0f0f0;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* File info */
+        .file-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+            .card {
+                padding: 20px;
+            }
+            .media-btn {
+                font-size: 14px;
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📱 SocialSphere</h1>
+            <p class="subtitle">AI-powered content moderation for a safer community</p>
+            
+            <!-- Media Type Selector -->
+            <div class="media-selector">
+                <button id="btnText" class="media-btn active" onclick="selectMediaType('text')">📝 Text</button>
+                <button id="btnImage" class="media-btn" onclick="selectMediaType('image')">🖼️ Image</button>
+                <button id="btnVideo" class="media-btn" onclick="selectMediaType('video')">🎬 Video</button>
+            </div>
+            
+            <!-- Text Input Area -->
+            <div id="textArea" class="input-area">
+                <textarea 
+                    id="postContent" 
+                    rows="4" 
+                    placeholder="What's on your mind? Write your post here..."
+                ></textarea>
+            </div>
+            
+            <!-- Image Upload Area -->
+            <div id="imageArea" class="input-area" style="display: none;">
+                <div class="file-input" id="imageDropZone" onclick="document.getElementById('imageFile').click()">
+                    <input type="file" id="imageFile" accept="image/*">
+                    <div>📸 Click or drag image here</div>
+                    <div style="font-size: 12px; margin-top: 8px;">Supports: JPG, PNG, GIF, WEBP (Max 20MB)</div>
+                </div>
+                <div id="imagePreviewContainer" class="preview-container" style="display: none;">
+                    <img id="imagePreview" class="preview-image">
+                    <button class="remove-preview" onclick="clearImagePreview()">✕</button>
+                </div>
+            </div>
+            
+            <!-- Video Upload Area -->
+            <div id="videoArea" class="input-area" style="display: none;">
+                <div class="file-input" id="videoDropZone" onclick="document.getElementById('videoFile').click()">
+                    <input type="file" id="videoFile" accept="video/*">
+                    <div>🎬 Click or drag video here</div>
+                    <div style="font-size: 12px; margin-top: 8px;">Supports: MP4, MOV, AVI, WEBM (Max 100MB)</div>
+                </div>
+                <div id="videoPreviewContainer" class="preview-container" style="display: none;">
+                    <video id="videoPreview" class="preview-video" controls></video>
+                    <button class="remove-preview" onclick="clearVideoPreview()">✕</button>
+                </div>
+                <div id="videoStatus" class="file-info"></div>
+            </div>
+            
+            <!-- Post Button -->
+            <button id="postButton" class="post-btn" onclick="checkContent()">
+                📤 Post to Community
+            </button>
+            
+            <!-- Loading -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div id="loadingText">🤖 AI is analyzing your content...</div>
+            </div>
+            
+            <!-- Result -->
+            <div class="result" id="result">
+                <div id="resultIcon" class="result-icon"></div>
+                <div id="resultTitle" class="result-title"></div>
+                <div id="resultMessage" class="result-message"></div>
+                <div id="harmfulScore" class="harmful-score"></div>
+                <div id="violations" class="violations"></div>
+                <div id="detectionMethod" class="status-badge"></div>
+            </div>
+            
+            <!-- Example Posts -->
+            <div class="examples">
+                <h4>📝 Try these examples:</h4>
+                <div class="example-buttons">
+                    <button class="example-btn" onclick="setExample('safe')">✅ Safe Post</button>
+                    <button class="example-btn" onclick="setExample('hate')">⚠️ Hate Speech</button>
+                    <button class="example-btn" onclick="setExample('harass')">⚠️ Harassment</button>
+                    <button class="example-btn" onclick="setExample('spam')">⚠️ Spam</button>
+                    <button class="example-btn" onclick="setExample('nudity')">🔞 Nudity</button>
+                    <button class="example-btn" onclick="setExample('violence')">💀 Violence</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = 'http://localhost:5000';
+        let currentMediaType = 'text';
+        let currentImageData = null;
+        let currentVideoData = null;
+        
+        // ============ Media Type Selection ============
+        function selectMediaType(type) {
+            currentMediaType = type;
+            
+            // Update button styles
+            document.getElementById('btnText').classList.remove('active');
+            document.getElementById('btnImage').classList.remove('active');
+            document.getElementById('btnVideo').classList.remove('active');
+            document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}`).classList.add('active');
+            
+            // Show/hide input areas
+            document.getElementById('textArea').style.display = type === 'text' ? 'block' : 'none';
+            document.getElementById('imageArea').style.display = type === 'image' ? 'block' : 'none';
+            document.getElementById('videoArea').style.display = type === 'video' ? 'block' : 'none';
+        }
+        
+        // ============ Image Handling ============
+        document.getElementById('imageFile')?.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    currentImageData = event.target.result;
+                    document.getElementById('imagePreview').src = currentImageData;
+                    document.getElementById('imagePreviewContainer').style.display = 'block';
+                    document.getElementById('imageDropZone').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        function clearImagePreview() {
+            currentImageData = null;
+            document.getElementById('imageFile').value = '';
+            document.getElementById('imagePreviewContainer').style.display = 'none';
+            document.getElementById('imageDropZone').style.display = 'block';
+        }
+        
+        // ============ Video Handling ============
+        document.getElementById('videoFile')?.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                document.getElementById('videoPreview').src = url;
+                document.getElementById('videoPreviewContainer').style.display = 'block';
+                document.getElementById('videoDropZone').style.display = 'none';
+                
+                // Store video data
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    currentVideoData = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        function clearVideoPreview() {
+            currentVideoData = null;
+            document.getElementById('videoFile').value = '';
+            document.getElementById('videoPreviewContainer').style.display = 'none';
+            document.getElementById('videoDropZone').style.display = 'block';
+            document.getElementById('videoStatus').innerHTML = '';
+        }
+        
+        // ============ Drag and Drop Support ============
+        function setupDragDrop(elementId, fileType, callback) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            element.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                element.classList.add('drag-over');
+            });
+            
+            element.addEventListener('dragleave', () => {
+                element.classList.remove('drag-over');
+            });
+            
+            element.addEventListener('drop', (e) => {
+                e.preventDefault();
+                element.classList.remove('drag-over');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith(fileType)) {
+                    callback(file);
+                } else {
+                    alert(`Please drop a ${fileType} file`);
+                }
+            });
+        }
+        
+        // Setup drag drop for images
+        setupDragDrop('imageDropZone', 'image/', (file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImageData = e.target.result;
+                document.getElementById('imagePreview').src = currentImageData;
+                document.getElementById('imagePreviewContainer').style.display = 'block';
+                document.getElementById('imageDropZone').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // ============ File to Base64 ============
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+        
+        // ============ Main Content Check Function ============
+        async function checkContent() {
+            let content = {};
+            let hasContent = false;
+            
+            // Prepare content based on media type
+            if (currentMediaType === 'text') {
+                const text = document.getElementById('postContent').value;
+                if (!text.trim()) {
+                    alert('Please write something to post');
+                    return;
+                }
+                content = { type: 'text', data: text };
+                hasContent = true;
+                document.getElementById('loadingText').innerHTML = '🤖 AI is analyzing your text...';
+            } 
+            else if (currentMediaType === 'image') {
+                const file = document.getElementById('imageFile').files[0];
+                if (!file && !currentImageData) {
+                    alert('Please select an image');
+                    return;
+                }
+                if (currentImageData) {
+                    content = { type: 'image', data: currentImageData, filename: file?.name || 'image.jpg' };
+                    hasContent = true;
+                    document.getElementById('loadingText').innerHTML = '🖼️ AI is analyzing your image...';
+                }
+            } 
+            else if (currentMediaType === 'video') {
+                const file = document.getElementById('videoFile').files[0];
+                if (!file && !currentVideoData) {
+                    alert('Please select a video');
+                    return;
+                }
+                if (currentVideoData) {
+                    content = { 
+                        type: 'video', 
+                        data: currentVideoData, 
+                        filename: file?.name || 'video.mp4', 
+                        size: file?.size || 0 
+                    };
+                    hasContent = true;
+                    document.getElementById('loadingText').innerHTML = '🎬 AI is analyzing your video frames...';
+                }
+            }
+            
+            if (!hasContent) {
+                alert('Please add content to post');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('result').classList.remove('show');
+            document.getElementById('postButton').disabled = true;
+            
+            try {
+                const response = await fetch(`${API_URL}/moderate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: content,
+                        user_reputation: 0.5,
+                        report_count: 0
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                showResult(result);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('⚠️ Cannot connect to AI server. Make sure backend is running on port 5000\n\nRun: python backend/api_server.py');
+            } finally {
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('postButton').disabled = false;
+            }
+        }
+        
+        // ============ Display Result ============
+        function showResult(result) {
+            const resultDiv = document.getElementById('result');
+            const resultIcon = document.getElementById('resultIcon');
+            const resultTitle = document.getElementById('resultTitle');
+            const resultMessage = document.getElementById('resultMessage');
+            const harmfulScoreDiv = document.getElementById('harmfulScore');
+            const violationsDiv = document.getElementById('violations');
+            const detectionMethodSpan = document.getElementById('detectionMethod');
+            
+            // Clear previous
+            violationsDiv.innerHTML = '';
+            
+            const harmfulPercent = (result.harmful_score * 100).toFixed(1);
+            const isSafe = result.harmful_score < 0.3;
+            const isFlagged = result.harmful_score >= 0.3 && result.harmful_score < 0.6;
+            const isRemoved = result.harmful_score >= 0.6;
+            
+            if (isSafe) {
+                resultDiv.className = 'result allowed show';
+                resultIcon.innerHTML = '✅';
+                resultTitle.innerHTML = 'Posted Successfully!';
+                resultMessage.innerHTML = result.reason || 'Your content is safe and has been published to the community.';
+                harmfulScoreDiv.innerHTML = `📊 Safety Score: ${100 - parseFloat(harmfulPercent)}% (Safe)`;
+            } 
+            else if (isFlagged) {
+                resultDiv.className = 'result flagged show';
+                resultIcon.innerHTML = '⚠️';
+                resultTitle.innerHTML = 'Content Under Review';
+                resultMessage.innerHTML = result.reason || 'Your content has been flagged for human review. It will be hidden until approved.';
+                harmfulScoreDiv.innerHTML = `⚠️ Harmful Score: ${harmfulPercent}% - Needs Review`;
+            } 
+            else {
+                resultDiv.className = 'result removed show';
+                resultIcon.innerHTML = '❌';
+                resultTitle.innerHTML = 'Cannot Post This Content';
+                resultMessage.innerHTML = result.reason || 'This content violates our community guidelines and cannot be posted.';
+                harmfulScoreDiv.innerHTML = `🚨 Harmful Score: ${harmfulPercent}% - Content Blocked`;
+            }
+            
+            // Show violations
+            if (result.violations && result.violations.length > 0) {
+                let violationsHtml = '<strong>🚨 Violations Detected:</strong><ul>';
+                const violationNames = {
+                    'nudity': '🔞 Nudity / Sexual Content',
+                    'violence': '💀 Violence / Gore',
+                    'hate_speech': '😡 Hate Speech',
+                    'harassment': '🤬 Harassment / Bullying',
+                    'spam': '📧 Spam / Scam',
+                    'file_too_large': '📁 File Too Large'
+                };
+                result.violations.forEach(v => {
+                    const displayName = violationNames[v] || v.replace('_', ' ').toUpperCase();
+                    violationsHtml += `<li>• ${displayName}</li>`;
+                });
+                violationsHtml += '</ul>';
+                violationsDiv.innerHTML = violationsHtml;
+            }
+            
+            // Show detection method
+            detectionMethodSpan.innerHTML = `🔍 Detection: ${result.detection_method || 'AI Model'}`;
+        }
+        
+        // ============ Example Content ============
+        function setExample(type) {
+            selectMediaType('text');
+            const examples = {
+                'safe': 'I love this community! Everyone is so helpful and kind. Thanks for making this platform awesome! 🙏',
+                'hate': 'I hate all of you. This community is full of stupid people who deserve to die.',
+                'harass': 'You are such an idiot. Nobody wants you here. Just leave and never come back.',
+                'spam': 'CLICK HERE FOR FREE MONEY!!! https://fake-link.com Buy now! Limited time offer!!!',
+                'nudity': 'Check out my nude photos here. Hot and sexy content for adults only!',
+                'violence': 'I will kill you and make you suffer. Blood and violence everywhere!'
+            };
+            
+            document.getElementById('postContent').value = examples[type] || examples.safe;
+            document.getElementById('postContent').focus();
+        }
+        
+        // ============ Check Backend Status ============
+        async function checkBackend() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Backend is running');
+                    console.log('🤖 AI Available:', data.ai_available);
+                    if (data.ai_available) {
+                        document.getElementById('postButton').disabled = false;
+                    } else {
+                        console.log('⚠️ AI models not loaded - using basic detection');
+                    }
+                }
+            } catch (error) {
+                console.log('⚠️ Backend not running. Start it with: python backend/api_server.py');
+                document.getElementById('postButton').disabled = true;
+                document.getElementById('postButton').style.opacity = '0.5';
+                document.getElementById('postButton').title = 'Backend not running. Start API server first.';
+            }
+        }
+        
+        // ============ Enter Key Support ============
+        document.getElementById('postContent')?.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                checkContent();
+            }
+        });
+        
+        // Initialize
+        checkBackend();
+        setInterval(checkBackend, 30000); // Check every 30 seconds
+    </script>
+</body>
+</html>

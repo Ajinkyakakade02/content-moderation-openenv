@@ -1,0 +1,42 @@
+[
+    {
+        "id": "1",
+        "text": "This community is amazing! Thank you everyone!",
+        "user_reputation": 0.9,
+        "report_count": 0,
+        "true_label": "safe",
+        "content_type": "text"
+    },
+    {
+        "id": "2",
+        "text": "I hate this group so much, everyone here is stupid",
+        "user_reputation": 0.2,
+        "report_count": 5,
+        "true_label": "toxic",
+        "content_type": "text"
+    },
+    {
+        "id": "3",
+        "text": "All members of this community should be eliminated",
+        "user_reputation": 0.1,
+        "report_count": 8,
+        "true_label": "hate_speech",
+        "content_type": "text"
+    },
+    {
+        "id": "4",
+        "text": "This is a helpful discussion about AI and technology",
+        "user_reputation": 0.8,
+        "report_count": 0,
+        "true_label": "safe",
+        "content_type": "text"
+    },
+    {
+        "id": "5",
+        "text": "You're an idiot for posting this nonsense",
+        "user_reputation": 0.3,
+        "report_count": 3,
+        "true_label": "toxic",
+        "content_type": "text"
+    }
+]

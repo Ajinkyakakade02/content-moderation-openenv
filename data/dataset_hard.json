@@ -1,0 +1,27 @@
+[
+    {
+        "id": "1",
+        "text": "Normal discussion about AI safety",
+        "user_reputation": 0.9,
+        "report_count": 0,
+        "true_label": "safe",
+        "content_type": "text"
+    },
+    {
+        "id": "2",
+        "text": "This is a spam message click here for free money",
+        "user_reputation": 0.1,
+        "report_count": 10,
+        "true_label": "spam",
+        "content_type": "text"
+    },
+    {
+        "id": "3",
+        "text": "I will find you and hurt you",
+        "user_reputation": 0.2,
+        "report_count": 15,
+        "true_label": "violence",
+        "content_type": "text"
+    }
+    
+]

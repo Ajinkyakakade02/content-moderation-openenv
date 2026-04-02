@@ -1,0 +1,10 @@
+{
+  "easy": 0.15999999999999998,
+  "medium": 0.5243333333333333,
+  "hard": 0.39999725818634035,
+  "final": 0.3652989032745361,
+  "config": {
+    "model": "gpt-3.5-turbo",
+    "api_base": "https://api.openai.com/v1"
+  }
+}
