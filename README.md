@@ -1,67 +1,43 @@
-# 🛡️ AI Content Moderation OpenEnv
+---
+title: AI Content Moderation System
+emoji: 🛡️
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_file: backend/api_server.py
+pinned: false
+---
 
-[![OpenEnv](https://img.shields.io/badge/OpenEnv-Compliant-blue)](https://github.com/openenv)
-[![Python](https://img.shields.io/badge/Python-3.9+-green)](https://python.org)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue)](https://docker.com)
+# 🛡️ AI Content Moderation System
 
-A production-ready content moderation environment built for the Meta XScalar Hackathon. Simulates real-world AI moderation where agents must decide to ALLOW, FLAG, or REMOVE user content while balancing safety and false positives.
+Automatically detects violence, nudity, hate speech, and inappropriate content in text, images, and videos.
 
-## 🎯 What This Environment Does
+## Features
 
-- **Real-time Content Moderation**: AI agent reviews text, images, videos, and reels
-- **Harmful Content Detection**: Nudity, hate speech, violence, harassment, dangerous acts
-- **3-Tier Decision System**: ALLOW (safe), FLAG (needs review), REMOVE (violates policy)
-- **Multi-Language Support**: Handles English, Hindi, Hinglish mixed content
-- **Time Constraints**: 2-second decisions at scale (Hard Task)
+- 🔪 **Violence Detection** - Fighting, weapons, blood
+- 🔞 **Nudity Detection** - NSFW, sexual content, bikini
+- 😡 **Hate Speech Detection** - Profanity, threats, anger
+- 🎬 **Video Analysis** - Frame-by-frame detection
+- 📝 **Text Moderation** - Real-time content filtering
 
-## 🏗️ Environment Architecture
+## API Endpoints
 
-Content Moderation Environment
-├── Observation Space
-│ ├── text: User content
-│ ├── user_reputation: Trust score (0-1)
-│ ├── report_count: Previous reports
-│ └── policy_summary: Current guidelines
-├── Action Space
-│ ├── 0: ALLOW (approve content)
-│ ├── 1: FLAG (human review)
-│ └── 2: REMOVE (delete + warning)
-└── Reward Function
-├── Correct: +1.0
-├── False Negative: -0.5 to -2.0
-├── False Positive: -0.2 to -0.5
-├── Efficiency Bonus: +0.1
-└── Consistency Bonus: +0.05
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Check server status |
+| `/moderate` | POST | Analyze content |
 
+## Frontend
 
-## 📋 Tasks
+Access the web interface at: `/frontend/index.html`
 
-| Task | Difficulty | Description | Max Score |
-|------|------------|-------------|-----------|
-| Basic Toxicity Detection | Easy | Detect hate speech, nudity, violence | 1.0 |
-| Ambiguous Content | Medium | Sarcasm, Hinglish, context-dependent | 1.0 |
-| Large-Scale Moderation | Hard | 50+ posts, 2s limit, precision vs recall | 1.0 |
+## Test the API
 
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.9+
-- Docker (optional)
-- OpenAI API key (for baseline agent)
-
-### Installation
 ```bash
-# Clone repository
-git clone https://github.com/yourteam/content-moderation-openenv
-cd content-moderation-openenv
+# Health check
+curl https://Ajinkyakakade02-content-moderation-openenv.hf.space/health
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Set environment variables
-export HF_TOKEN="your_api_key"
-export MODEL_NAME="gpt-3.5-turbo"
-export API_BASE_URL="https://api.openai.com/v1"
-
-# Run baseline inference
-python inference.py
+# Moderate text
+curl -X POST https://Ajinkyakakade02-content-moderation-openenv.hf.space/moderate \
+  -H "Content-Type: application/json" \
+  -d '{"content":{"type":"text","data":"I hate you"}}'

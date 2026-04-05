@@ -1,31 +1,22 @@
- 
 FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for OpenCV
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
+# Copy requirements first (for better caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy all files
 COPY . .
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
+# Hugging Face requires port 7860
+EXPOSE 7860
 
-# Environment variables (to be set at runtime)
-ENV API_BASE_URL="https://api.openai.com/v1"
-ENV MODEL_NAME="gpt-3.5-turbo"
-
-# Expose port for API
-EXPOSE 8000
-
-# Run inference by default
-CMD ["python", "inference.py"]
+# Run with gunicorn
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:7860", "backend.api_server:app"]
