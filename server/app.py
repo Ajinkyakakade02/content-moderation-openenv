@@ -90,10 +90,32 @@ def get_observation_space():
     }
 
 
+def main():
+    """
+    Main entry point for the OpenEnv server.
+    This function is required by OpenEnv multi-mode deployment.
+    """
+    print("=" * 60)
+    print("🚀 Content Moderation OpenEnv Server")
+    print("=" * 60)
+    print(f"Environment: content-moderation-openenv")
+    print(f"Version: 1.0.0")
+    print(f"Tasks: easy, medium, hard")
+    print("=" * 60)
+    
+    # Quick test to verify environment works
+    try:
+        env = create_env()
+        obs, info = env.reset()
+        print(f"✅ Environment initialized successfully")
+        print(f"   Observation keys: {list(obs.keys())}")
+        print(f"   Action space: {get_action_space()}")
+        return 0
+    except Exception as e:
+        print(f"❌ Environment initialization failed: {e}")
+        return 1
+
+
 if __name__ == "__main__":
-    # Quick test
-    env = create_env()
-    obs, info = env.reset()
-    print(f"✅ Environment created successfully")
-    print(f"   Observation keys: {list(obs.keys())}")
-    print(f"   Action space: {get_action_space()}")
+    exit_code = main()
+    sys.exit(exit_code)
