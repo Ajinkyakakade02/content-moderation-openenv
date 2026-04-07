@@ -41,6 +41,7 @@ dev = [
 
 [project.scripts]
 content-moderation = "server.app:main"
+openenv-server = "server.app:main"
 
 [project.urls]
 "Homepage" = "https://github.com/Ajinkyakakade02/content-moderation-openenv"
