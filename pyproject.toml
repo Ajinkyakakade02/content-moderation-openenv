@@ -34,9 +34,6 @@ dependencies = [
 [project.scripts]
 openenv-server = "server.app:main"
 
-[project.urls]
-Homepage = "https://github.com/Ajinkyakakade02/content-moderation-openenv"
-
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["environment*", "tasks*", "graders*", "agents*", "backend*", "server*"]
+include = ["server", "environment", "tasks", "graders", "agents", "backend"]
