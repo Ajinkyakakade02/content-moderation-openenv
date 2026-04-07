@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.scripts]
-openenv-server = "server.app:main"
+content-moderation-openenv = "server.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
