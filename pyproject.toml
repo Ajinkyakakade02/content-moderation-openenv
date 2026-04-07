@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "content-moderation-openenv"
+version = "1.0.0"
+description = "AI Content Moderation Environment for OpenEnv - Detect violence, nudity, hate speech in text, images, and videos"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Ajinkya Kakade", email = "ajinkyakakde510@gmail.com"}
+]
+keywords = ["openenv", "content-moderation", "ai", "reinforcement-learning", "hackathon"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "flask>=2.3.0",
+    "flask-cors>=4.0.0",
+    "gunicorn>=21.0.0",
+    "transformers>=4.35.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "pillow>=10.0.0",
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "pydantic>=2.0.0",
+    "gymnasium>=0.29.0",
+    "python-dotenv>=1.0.0",
+    "scikit-learn>=1.3.0",
+    "openai>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Ajinkyakakade02/content-moderation-openenv"
+"Bug Reports" = "https://github.com/Ajinkyakakade02/content-moderation-openenv/issues"
+"Hugging Face Space" = "https://huggingface.co/spaces/Ajinkyakakade02/content-moderation-openenv"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["environment*", "tasks*", "graders*", "agents*", "backend*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json", "*.md", "*.txt"]
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501", "UP006", "UP007"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
