@@ -5,14 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "content-moderation-openenv"
 version = "1.0.0"
-description = "AI Content Moderation Environment for OpenEnv - Detect violence, nudity, hate speech in text, images, and videos"
+description = "AI Content Moderation Environment for OpenEnv"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
     {name = "Ajinkya Kakade", email = "ajinkyakakde510@gmail.com"}
 ]
-keywords = ["openenv", "content-moderation", "ai", "reinforcement-learning", "hackathon"]
 
 dependencies = [
     "flask>=2.3.0",
@@ -32,25 +31,12 @@ dependencies = [
     "openenv-core>=0.2.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "black>=23.0",
-    "ruff>=0.1.0",
-]
-
 [project.scripts]
 content-moderation = "server.app:main"
-openenv-server = "server.app:main"
 
 [project.urls]
-"Homepage" = "https://github.com/Ajinkyakakade02/content-moderation-openenv"
-"Bug Reports" = "https://github.com/Ajinkyakakade02/content-moderation-openenv/issues"
-"Hugging Face Space" = "https://huggingface.co/spaces/Ajinkyakakade02/content-moderation-openenv"
+Homepage = "https://github.com/Ajinkyakakade02/content-moderation-openenv"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["environment*", "tasks*", "graders*", "agents*", "backend*", "server*"]
-
-[tool.setuptools.package-data]
-"*" = ["*.yaml", "*.json", "*.md", "*.txt"]
