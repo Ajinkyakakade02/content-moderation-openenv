@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.scripts]
-moderation-server = "backend.api_server:app"
+server = "content-moderation-openenv.backend.api_server.app:main"
 
 [project.urls]
 "Homepage" = "https://github.com/Ajinkyakakade02/content-moderation-openenv"
