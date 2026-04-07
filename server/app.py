@@ -42,19 +42,19 @@ def get_tasks():
         "easy": {
             "name": "Basic Toxicity Detection",
             "description": "Detect clearly toxic content with high accuracy",
-            "grader": ModerationGrader,
+            "grader": "ModerationGrader",
             "max_score": 1.0
         },
         "medium": {
             "name": "Ambiguous Content Detection",
             "description": "Handle sarcasm, mixed language, and context-dependent content",
-            "grader": ModerationGrader,
+            "grader": "ModerationGrader",
             "max_score": 1.0
         },
         "hard": {
             "name": "Large-Scale Moderation",
             "description": "Process 50+ posts with time constraints",
-            "grader": ModerationGrader,
+            "grader": "ModerationGrader",
             "max_score": 1.0
         }
     }
@@ -115,6 +115,9 @@ def main():
         print(f"❌ Environment initialization failed: {e}")
         return 1
 
+
+# This is REQUIRED for OpenEnv to find the main function
+main_function = main
 
 if __name__ == "__main__":
     exit_code = main()
