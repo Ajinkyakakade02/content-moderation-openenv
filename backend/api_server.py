@@ -24,13 +24,11 @@ try:
     # Load Violence Detection Model
     print("📥 Loading violence/fight/kill detection model...")
     try:
-        # Primary violence detection model
         violence_detector = pipeline("image-classification",
                                      model="Nickil21/violence-detection-model")
         print("✅ Violence detection model loaded")
     except:
         try:
-            # Fallback to another violence model
             violence_detector = pipeline("image-classification",
                                          model="google/vit-base-patch16-224")
             print("✅ Alternative violence model loaded")
@@ -55,7 +53,6 @@ agent = BaselineAgent(use_openai=False)
 
 # COMPREHENSIVE TEXT MODERATION KEYWORDS
 TOXIC_WORDS = {
-    # Violence, Fight, Kill
     'violence': [
         'kill', 'murder', 'death', 'die', 'dead', 'blood', 'gore', 'attack', 
         'fight', 'fighting', 'hit', 'punch', 'kick', 'stab', 'shoot', 'gun', 
@@ -63,8 +60,6 @@ TOXIC_WORDS = {
         'hurt', 'pain', 'injury', 'wound', 'slaughter', 'execute', 'violent',
         'aggressive', 'rage', 'destroy', 'damage', 'crash', 'collision'
     ],
-    
-    # Nudity, Sexuality, Short Clothes, Bold Images
     'nudity': [
         'nude', 'naked', 'nudity', 'bare', 'exposed', 'lingerie', 'bikini', 
         'swimsuit', 'underwear', 'bra', 'panties', 'thong', 'sex', 'sexual', 
@@ -72,8 +67,6 @@ TOXIC_WORDS = {
         'provocative', 'revealing', 'short skirt', 'hot', 'sexy', 'seductive',
         'topless', 'bottomless', 'strip', 'stripper', 'intimate', 'orgy'
     ],
-    
-    # Anger, Hate, Harassment
     'hate': [
         'hate', 'angry', 'anger', 'fury', 'rage', 'mad', 'furious', 'annoyed',
         'stupid', 'idiot', 'moron', 'retard', 'fool', 'dumb', 'worthless',
@@ -81,8 +74,6 @@ TOXIC_WORDS = {
         'fuck', 'shit', 'damn', 'bitch', 'asshole', 'bastard', 'crap', 'piss',
         'whore', 'slut', 'dick', 'cock', 'cunt', 'motherfucker'
     ],
-    
-    # Short Clothes, Bold Fashion
     'clothing': [
         'short', 'mini', 'tiny', 'small', 'tight', 'see-through', 'transparent',
         'revealing', 'low cut', 'deep neck', 'backless', 'strapless', 'spaghetti',
@@ -90,38 +81,32 @@ TOXIC_WORDS = {
     ]
 }
 
-# Combine all for comprehensive detection
 ALL_BAD_WORDS = (TOXIC_WORDS['violence'] + TOXIC_WORDS['nudity'] + 
                  TOXIC_WORDS['hate'] + TOXIC_WORDS['clothing'])
 
 def moderate_text(text):
-    """Comprehensive text moderation - detects violence, nudity, anger, hate speech"""
     text_lower = text.lower()
     violations = []
     harmful_score = 0.0
     
-    # Check Violence/Fight/Kill
     for word in TOXIC_WORDS['violence']:
         if word in text_lower:
             violations.append('violence')
             harmful_score += 0.4
             break
     
-    # Check Nudity/Sexuality/Short Clothes
     for word in TOXIC_WORDS['nudity']:
         if word in text_lower:
             violations.append('nudity')
             harmful_score += 0.4
             break
     
-    # Check Anger/Hate Speech
     for word in TOXIC_WORDS['hate']:
         if word in text_lower:
             violations.append('hate_speech')
             harmful_score += 0.35
             break
     
-    # Check Short Clothes/Bold Fashion (if not already caught)
     if 'nudity' not in violations:
         for word in TOXIC_WORDS['clothing']:
             if word in text_lower:
@@ -131,11 +116,9 @@ def moderate_text(text):
     
     harmful_score = min(1.0, harmful_score)
     violations = list(set(violations))
-    
     return violations, harmful_score
 
 def analyze_image_with_ai(image_data):
-    """Comprehensive image analysis - detects nudity, violence, inappropriate content"""
     try:
         if ',' in image_data:
             image_data = image_data.split(',')[1]
@@ -148,7 +131,6 @@ def analyze_image_with_ai(image_data):
         detection_details = []
         
         if AI_AVAILABLE:
-            # 1. Check for Nudity/Sexual Content
             try:
                 nsfw_result = nsfw_detector(image)
                 is_nsfw = nsfw_result[0]['label'] == 'nsfw'
@@ -162,13 +144,11 @@ def analyze_image_with_ai(image_data):
             except Exception as e:
                 print(f"   NSFW check error: {e}")
             
-            # 2. Check for Violence/Fight/Kill
             try:
                 violence_result = violence_detector(image)
                 is_violent = False
                 violence_confidence = 0.0
                 
-                # Check for violence indicators
                 violence_keywords = ['violence', 'blood', 'gore', 'fight', 'attack', 
                                     'weapon', 'gun', 'knife', 'injury', 'wound',
                                     'violent', 'fighting', 'killing', 'murder', 'death']
@@ -189,24 +169,18 @@ def analyze_image_with_ai(image_data):
             except Exception as e:
                 print(f"   Violence check error: {e}")
         
-        # 3. Check image properties for short clothes/bold content (heuristic)
         if 'nudity' not in violations and harmful_score < 0.5:
-            # Simple skin tone detection (basic)
             try:
-                # Convert image to RGB and analyze colors
                 rgb_image = image.convert('RGB')
                 pixels = list(rgb_image.getdata())
-                
-                # Count skin-like colors (simplified)
                 skin_colors = 0
                 for pixel in pixels:
                     r, g, b = pixel
-                    # Skin color range (simplified)
                     if r > 100 and g > 50 and b > 30 and abs(r-g) < 50:
                         skin_colors += 1
                 
                 skin_ratio = skin_colors / len(pixels)
-                if skin_ratio > 0.3:  # More than 30% skin color
+                if skin_ratio > 0.3:
                     violations.append('inappropriate_clothing')
                     harmful_score = max(harmful_score, 0.4)
                     detection_details.append(f"Exposed skin: {skin_ratio:.0%}")
@@ -226,7 +200,6 @@ def analyze_image_with_ai(image_data):
         return [], 0.0
 
 def analyze_video_with_ai(video_data):
-    """Comprehensive video analysis - frame by frame for all violations"""
     try:
         if ',' in video_data:
             video_data = video_data.split(',')[1]
@@ -262,7 +235,6 @@ def analyze_video_with_ai(video_data):
             pil_image = Image.fromarray(frame_rgb)
             
             if AI_AVAILABLE:
-                # 1. CHECK FOR NUDITY/SEXUAL CONTENT
                 try:
                     nsfw_result = nsfw_detector(pil_image)
                     is_nsfw = nsfw_result[0]['label'] == 'nsfw'
@@ -277,13 +249,11 @@ def analyze_video_with_ai(video_data):
                 except:
                     pass
                 
-                # 2. CHECK FOR VIOLENCE/FIGHT/KILL
                 try:
                     violence_result = violence_detector(pil_image)
                     is_violent = False
                     violence_confidence = 0.0
                     
-                    # Expanded violence keywords
                     violence_keywords = ['violence', 'blood', 'gore', 'fight', 'attack', 
                                         'weapon', 'gun', 'knife', 'injury', 'wound',
                                         'violent', 'fighting', 'killing', 'murder', 
@@ -306,15 +276,12 @@ def analyze_video_with_ai(video_data):
                 except:
                     pass
                 
-                # 3. CHECK FOR ANGER/AGGRESSIVE FACES
                 try:
-                    # Simple color analysis for anger detection (redness in face)
                     if 'anger' not in violations:
                         frame_array = np.array(frame_rgb)
-                        # Check for increased red tones (anger indicator)
                         avg_red = np.mean(frame_array[:,:,0])
                         avg_green = np.mean(frame_array[:,:,1])
-                        if avg_red > avg_green * 1.3:  # More red than green
+                        if avg_red > avg_green * 1.3:
                             violations.append('anger')
                             harmful_score = max(harmful_score, 0.5)
                             detection_details.append(f"Anger detected at frame {i}")
@@ -341,14 +308,12 @@ def analyze_video_with_ai(video_data):
         return [], 0.0
 
 def analyze_video_basic(video_info):
-    """Basic video analysis (filename only)"""
     filename = video_info.get('filename', '').lower()
     size = video_info.get('size', 0)
     
     violations = []
     harmful_score = 0.0
     
-    # Check all bad words in filename
     for word in ALL_BAD_WORDS:
         if word in filename:
             violations.append('suspicious_filename')
@@ -364,7 +329,6 @@ def analyze_video_basic(video_info):
 
 @app.route('/moderate', methods=['POST'])
 def moderate():
-    """Comprehensive content moderation - detects everything"""
     data = request.json
     content = data.get('content', {})
     content_type = content.get('type', 'text')
@@ -412,7 +376,6 @@ def moderate():
     print(f"   🚨 Violations: {violations if violations else 'None'}")
     print(f"   🔧 Method: {detection_method}")
     
-    # Decision based on harmful score
     if harmful_score > 0.6:
         action = 'REMOVE'
         action_message = f"❌ Cannot upload - {detection_method} detected harmful content ({int(harmful_score*100)}%)"
@@ -423,7 +386,6 @@ def moderate():
         action = 'ALLOW'
         action_message = f"✅ Content approved - {detection_method} says safe ({int((1-harmful_score)*100)}%)"
     
-    # Specific violation messages
     if 'nudity' in violations:
         action_message = "❌ Cannot upload - Nudity/Sexual content detected"
     elif 'violence' in violations:
@@ -464,6 +426,29 @@ def health():
         }
     })
 
+@app.route('/reset', methods=['POST'])
+def reset():
+    """OpenEnv required endpoint - resets the environment state"""
+    # Reset any global state if needed
+    # For now, just return success
+    return jsonify({
+        'status': 'ok',
+        'message': 'Environment reset successfully'
+    }), 200
+
+@app.route('/')
+def home():
+    return jsonify({
+        "message": "AI Content Moderation API is running",
+        "endpoints": {
+            "health": "/health",
+            "reset": "/reset (POST)",
+            "moderate": "/moderate (POST)"
+        },
+        "status": "active",
+        "ai_available": AI_AVAILABLE
+    })
+
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 7860))
@@ -471,4 +456,10 @@ if __name__ == '__main__':
     print("🚀 AI Content Moderation API Server")
     print("=" * 60)
     print(f"📡 Running on: http://0.0.0.0:{port}")
+    print("📝 Endpoints:")
+    print("   GET  /health - Health check")
+    print("   POST /reset - Reset environment")
+    print("   POST /moderate - Moderate content")
+    print("   GET  / - API info")
+    print("=" * 60)
     app.run(debug=False, host='0.0.0.0', port=port)
