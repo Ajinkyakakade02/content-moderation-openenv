@@ -6,8 +6,9 @@ Follows strict [START]/[STEP]/[END] format required for hackathon
 
 import os
 import sys
+import json
+import requests
 from typing import List, Optional
-from openai import OpenAI
 
 # ============================================
 # Read environment variables (injected by hackathon)
@@ -31,21 +32,12 @@ if not API_KEY:
     print("[DEBUG] ERROR: API_KEY not set", file=sys.stderr, flush=True)
     sys.exit(1)
 
-# Remove /v1 if present (LiteLLM proxy doesn't need it)
-if API_BASE_URL.endswith("/v1"):
-    API_BASE_URL = API_BASE_URL[:-3]
-
 print(f"[DEBUG] Using API_BASE_URL: {API_BASE_URL}", file=sys.stderr, flush=True)
 print(f"[DEBUG] Using MODEL_NAME: {MODEL_NAME}", file=sys.stderr, flush=True)
 
 # Import environment
 from environment.moderation_env import ModerationEnv
 from environment.models import ModerationAction
-
-# ============================================
-# Initialize OpenAI client
-# ============================================
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 SYSTEM_PROMPT = """You are an AI content moderator. Your task is to analyze content and decide:
 - ALLOW: Content is safe and appropriate
@@ -77,40 +69,64 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 
 
 def get_model_action(observation: dict) -> ModerationAction:
-    """Get action from OpenAI model using hackathon proxy"""
+    """Get action from LLM using manual HTTP request to LiteLLM proxy"""
     text = observation.get('text', '')
     user_rep = observation.get('user_reputation', [0.5])[0] if isinstance(observation.get('user_reputation'), list) else observation.get('user_reputation', 0.5)
     reports = observation.get('report_count', 0)
     
-    prompt = f"""Content: "{text}"
+    # Construct the prompt
+    user_prompt = f"""Content: "{text}"
 User reputation: {user_rep:.2f}/1.0
 Report count: {reports}
 
 Choose: ALLOW, FLAG, or REMOVE"""
     
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-        )
-        action_text = completion.choices[0].message.content.strip().upper()
-        
-        if action_text == 'ALLOW':
-            return ModerationAction.ALLOW
-        elif action_text == 'FLAG':
-            return ModerationAction.FLAG
-        elif action_text == 'REMOVE':
-            return ModerationAction.REMOVE
-        else:
-            return ModerationAction.ALLOW
-    except Exception as e:
-        print(f"[DEBUG] API call failed: {e}", file=sys.stderr, flush=True)
-        return heuristic_decision(observation)
+    # Prepare the request payload for OpenAI-compatible API
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": TEMPERATURE,
+        "max_tokens": MAX_TOKENS,
+    }
+    
+    # Determine the correct endpoint URL
+    # Try different possible endpoints
+    endpoints_to_try = [
+        f"{API_BASE_URL}/v1/chat/completions",
+        f"{API_BASE_URL}/chat/completions",
+        f"{API_BASE_URL}/completions",
+    ]
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+    }
+    
+    for endpoint in endpoints_to_try:
+        try:
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
+                result = response.json()
+                action_text = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
+                
+                if action_text == 'ALLOW':
+                    return ModerationAction.ALLOW
+                elif action_text == 'FLAG':
+                    return ModerationAction.FLAG
+                elif action_text == 'REMOVE':
+                    return ModerationAction.REMOVE
+                else:
+                    return ModerationAction.ALLOW
+        except Exception as e:
+            print(f"[DEBUG] Endpoint {endpoint} failed: {e}", file=sys.stderr, flush=True)
+            continue
+    
+    # If all endpoints fail, fall back to heuristic
+    print("[DEBUG] All API endpoints failed, using heuristic", file=sys.stderr, flush=True)
+    return heuristic_decision(observation)
 
 
 def heuristic_decision(observation: dict) -> ModerationAction:
