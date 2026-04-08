@@ -104,9 +104,10 @@ def heuristic_decision(observation: dict) -> str:
     return 'ALLOW'
 
 
-def run_task(env: ModerationEnv, task_name: str, client: OpenAI) -> tuple:
+def run_task(env: ModerationEnv, task_name: str, client: Optional[OpenAI]) -> tuple:
     """Run a single task and return results"""
     rewards = []
+    actions = []
     steps_taken = 0
     success = False
     
@@ -117,7 +118,7 @@ def run_task(env: ModerationEnv, task_name: str, client: OpenAI) -> tuple:
             break
         
         # Get action from model (or heuristic if API not available)
-        if API_KEY:
+        if client and API_KEY:
             action_str = get_model_action(client, observation)
         else:
             action_str = heuristic_decision(observation)
@@ -129,6 +130,7 @@ def run_task(env: ModerationEnv, task_name: str, client: OpenAI) -> tuple:
         # Take step in environment
         observation, reward, done, _, info = env.step(action)
         rewards.append(reward)
+        actions.append(action_str)
         steps_taken = step
         
         error = None
@@ -152,9 +154,10 @@ def main():
     # Initialize OpenAI client only if API key is available
     client = None
     if API_KEY:
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    else:
-        print("[DEBUG] No API key found. Using heuristic agent.", flush=True)
+        try:
+            client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+        except Exception as e:
+            print(f"[DEBUG] Failed to initialize OpenAI client: {e}", flush=True)
     
     # Define tasks with their configurations
     tasks = [
@@ -185,10 +188,9 @@ def main():
         except Exception as e:
             log_end(success=False, steps=0, score=0.0, rewards=[])
             print(f"[DEBUG] Task {task_name} failed: {e}", flush=True)
-    
-    # Final summary (optional debug output)
-    final_score = total_score / len(tasks)
-    print(f"[DEBUG] Final Score: {final_score:.3f}", flush=True)
+        finally:
+            # Clean up
+            pass
 
 
 if __name__ == "__main__":
