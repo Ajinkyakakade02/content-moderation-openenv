@@ -11,20 +11,20 @@ from typing import List, Optional
 from openai import OpenAI
 
 # ============================================
-# CRITICAL: Read environment variables as required
-# These are injected by the hackathon platform
+# CRITICAL: Read environment variables as injected by hackathon
+# DO NOT use other variable names or hardcode API keys
 # ============================================
-API_BASE_URL = os.getenv("API_BASE_URL")
-API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
+API_BASE_URL = os.environ.get("API_BASE_URL")
+API_KEY = os.environ.get("API_KEY")  # ← MUST be this exact name
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
 BENCHMARK = "content-moderation-openenv"
 MAX_STEPS = 20
 TEMPERATURE = 0.2
 MAX_TOKENS = 50
 
 # ============================================
-# VALIDATION: Check if API credentials are present
-# If not, the submission will FAIL - this is intentional
+# VALIDATION: Exit if credentials are missing
+# The hackathon platform injects these - if missing, something is wrong
 # ============================================
 if not API_BASE_URL:
     print("[DEBUG] ERROR: API_BASE_URL environment variable not set", file=sys.stderr, flush=True)
@@ -34,8 +34,9 @@ if not API_KEY:
     print("[DEBUG] ERROR: API_KEY environment variable not set", file=sys.stderr, flush=True)
     sys.exit(1)
 
-print(f"[DEBUG] Using API_BASE_URL: {API_BASE_URL}", file=sys.stderr, flush=True)
-print(f"[DEBUG] Using MODEL_NAME: {MODEL_NAME}", file=sys.stderr, flush=True)
+# Log to stderr (won't affect stdout validation)
+print(f"[DEBUG] API_BASE_URL: {API_BASE_URL}", file=sys.stderr, flush=True)
+print(f"[DEBUG] MODEL_NAME: {MODEL_NAME}", file=sys.stderr, flush=True)
 
 # Import environment
 from environment.moderation_env import ModerationEnv
@@ -43,6 +44,7 @@ from environment.models import ModerationAction
 
 # ============================================
 # Initialize OpenAI client with hackathon proxy
+# MUST use API_BASE_URL and API_KEY from environment
 # ============================================
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
@@ -87,53 +89,32 @@ Report count: {reports}
 
 Choose: ALLOW, FLAG, or REMOVE"""
     
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-        )
-        action_text = completion.choices[0].message.content.strip().upper()
-        if action_text == 'ALLOW':
-            return ModerationAction.ALLOW
-        elif action_text == 'FLAG':
-            return ModerationAction.FLAG
-        elif action_text == 'REMOVE':
-            return ModerationAction.REMOVE
-        else:
-            return ModerationAction.ALLOW
-    except Exception as e:
-        print(f"[DEBUG] API call failed: {e}", file=sys.stderr, flush=True)
-        # Fallback to heuristic (but this should not happen in production)
-        return heuristic_decision(observation)
-
-
-def heuristic_decision(observation: dict) -> ModerationAction:
-    """Fallback heuristic when API is unavailable"""
-    text = observation.get('text', '').lower()
+    # Make the API call through the hackathon proxy
+    completion = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=TEMPERATURE,
+        max_tokens=MAX_TOKENS,
+    )
+    action_text = completion.choices[0].message.content.strip().upper()
     
-    violence_words = ['hate', 'kill', 'die', 'murder', 'violence', 'blood']
-    for word in violence_words:
-        if word in text:
-            return ModerationAction.REMOVE
-    
-    profanity_words = ['stupid', 'idiot', 'fuck', 'shit', 'bitch', 'asshole']
-    for word in profanity_words:
-        if word in text:
-            return ModerationAction.FLAG
-    
-    return ModerationAction.ALLOW
+    if action_text == 'ALLOW':
+        return ModerationAction.ALLOW
+    elif action_text == 'FLAG':
+        return ModerationAction.FLAG
+    elif action_text == 'REMOVE':
+        return ModerationAction.REMOVE
+    else:
+        return ModerationAction.ALLOW
 
 
 def run_task(env: ModerationEnv, task_name: str) -> tuple:
     """Run a single task and return results"""
     rewards = []
     steps_taken = 0
-    success = False
     
     observation, info = env.reset()
     
@@ -174,19 +155,15 @@ def main():
     for task_name, dataset_path, max_steps in tasks:
         log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
         
-        try:
-            env = ModerationEnv(
-                dataset_path=dataset_path,
-                max_steps=max_steps,
-                task_difficulty=task_name,
-                render_mode=None
-            )
-            
-            success, steps, score, rewards = run_task(env, task_name)
-            log_end(success=success, steps=steps, score=score, rewards=rewards)
-        except Exception as e:
-            log_end(success=False, steps=0, score=0.0, rewards=[])
-            print(f"DEBUG: Task {task_name} failed: {e}", file=sys.stderr, flush=True)
+        env = ModerationEnv(
+            dataset_path=dataset_path,
+            max_steps=max_steps,
+            task_difficulty=task_name,
+            render_mode=None
+        )
+        
+        success, steps, score, rewards = run_task(env, task_name)
+        log_end(success=success, steps=steps, score=score, rewards=rewards)
 
 
 if __name__ == "__main__":
