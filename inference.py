@@ -1,35 +1,19 @@
 #!/usr/bin/env python3
+"""
+OpenEnv Baseline Inference Script for Content Moderation Environment
+Uses heuristic-only mode (no external API calls)
+"""
 
 import os
 import sys
-from typing import Optional, List
-from openai import OpenAI
-
-from environment.moderation_env import ModerationEnv
-from environment.models import ModerationAction
-
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
-
-client = OpenAI(
-    base_url=API_BASE_URL,
-    api_key=HF_TOKEN,
-)
+from typing import List, Optional
 
 BENCHMARK = "content-moderation-openenv"
 MAX_STEPS = 20
-TEMPERATURE = 0.2
-MAX_TOKENS = 50
 
-SYSTEM_PROMPT = """You are an AI content moderator. Your task is to analyze content and decide:
-- ALLOW: Content is safe and appropriate
-- FLAG: Content is suspicious and needs human review
-- REMOVE: Content violates policies
-
-Respond with ONLY one word: ALLOW, FLAG, or REMOVE"""
+# Import environment
+from environment.moderation_env import ModerationEnv
+from environment.models import ModerationAction
 
 
 def log_start(task: str, env: str, model: str) -> None:
@@ -37,121 +21,94 @@ def log_start(task: str, env: str, model: str) -> None:
 
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
     print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error if error else 'null'}",
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
         flush=True,
     )
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
         flush=True,
     )
 
 
 def heuristic_decision(observation: dict) -> ModerationAction:
-    text = observation.get("text", "").lower()
-
-    violence_words = ["hate", "kill", "die", "murder", "violence", "blood"]
+    """Heuristic-based decision making"""
+    text = observation.get('text', '').lower()
+    
+    # Violence keywords -> REMOVE
+    violence_words = ['hate', 'kill', 'die', 'murder', 'violence', 'blood', 'attack', 'hurt']
     for word in violence_words:
         if word in text:
             return ModerationAction.REMOVE
-
-    profanity_words = ["stupid", "idiot", "fuck", "shit", "bitch", "asshole"]
+    
+    # Profanity/harassment -> FLAG
+    profanity_words = ['stupid', 'idiot', 'fuck', 'shit', 'bitch', 'asshole', 'damn', 'crap']
     for word in profanity_words:
         if word in text:
             return ModerationAction.FLAG
-
+    
+    # Default -> ALLOW
     return ModerationAction.ALLOW
 
 
-def get_model_action(observation: dict) -> ModerationAction:
-    text = observation.get("text", "")
-    user_rep = observation.get("user_reputation", 0.5)
-    if isinstance(user_rep, list):
-        user_rep = user_rep[0] if user_rep else 0.5
-    report_count = observation.get("report_count", 0)
-
-    prompt = f"""Content: "{text}"
-User reputation: {user_rep:.2f}/1.0
-Report count: {report_count}
-
-Choose: ALLOW, FLAG, or REMOVE"""
-
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-        )
-        action_text = completion.choices[0].message.content.strip().upper()
-
-        if action_text == "ALLOW":
-            return ModerationAction.ALLOW
-        elif action_text == "FLAG":
-            return ModerationAction.FLAG
-        elif action_text == "REMOVE":
-            return ModerationAction.REMOVE
-        return heuristic_decision(observation)
-
-    except Exception as e:
-        print(f"[DEBUG] API call failed: {e}", file=sys.stderr, flush=True)
-        return heuristic_decision(observation)
-
-
-def run_task(env: ModerationEnv) -> tuple[bool, int, List[float]]:
+def run_task(env: ModerationEnv, task_name: str) -> tuple:
+    """Run a single task and return results"""
     rewards = []
     steps_taken = 0
+    
     observation, info = env.reset()
-
-    try:
-        for step in range(1, MAX_STEPS + 1):
-            action_enum = get_model_action(observation)
-            action_str = action_enum.value
-
-            observation, reward, done, _, info = env.step(action_enum)
-            rewards.append(reward)
-            steps_taken = step
-
-            log_step(step=step, action=action_str, reward=reward, done=done, error=None)
-
-            if done:
-                break
-    finally:
-        env.close()
-
-    success = any(r > 0 for r in rewards)
-    return success, steps_taken, rewards
+    
+    for step in range(1, MAX_STEPS + 1):
+        if env.current_step >= env.max_steps:
+            break
+        
+        action_enum = heuristic_decision(observation)
+        action_str = action_enum.value
+        
+        observation, reward, done, _, info = env.step(action_enum)
+        rewards.append(reward)
+        steps_taken = step
+        
+        log_step(step=step, action=action_str, reward=reward, done=done, error=None)
+        
+        if done:
+            break
+    
+    total_reward = sum(rewards)
+    max_possible = env.max_steps * 1.0
+    score = min(max(total_reward / max_possible, 0.0), 1.0) if max_possible > 0 else 0.0
+    success = score >= 0.5
+    
+    return success, steps_taken, score, rewards
 
 
 def main():
+    """Run all 3 tasks with proper logging format"""
+    
     tasks = [
-        ("easy", "data/dataset_easy.json", 15),
-        ("medium", "data/dataset_medium.json", 20),
-        ("hard", "data/dataset_hard.json", 50),
+        ('easy', 'data/dataset_easy.json', 15),
+        ('medium', 'data/dataset_medium.json', 20),
+        ('hard', 'data/dataset_hard.json', 50),
     ]
-
+    
     for task_name, dataset_path, max_steps in tasks:
-        global MAX_STEPS
-        MAX_STEPS = max_steps
-
-        log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
-
+        log_start(task=task_name, env=BENCHMARK, model="heuristic")
+        
         env = ModerationEnv(
             dataset_path=dataset_path,
             max_steps=max_steps,
             task_difficulty=task_name,
-            render_mode=None,
+            render_mode=None
         )
-
-        success, steps, rewards = run_task(env)
-        log_end(success=success, steps=steps, rewards=rewards)
+        
+        success, steps, score, rewards = run_task(env, task_name)
+        log_end(success=success, steps=steps, score=score, rewards=rewards)
 
 
 if __name__ == "__main__":
