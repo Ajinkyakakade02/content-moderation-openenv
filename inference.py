@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 OpenEnv Baseline Inference Script for Content Moderation Environment
+Follows strict [START]/[STEP]/[END] format required for hackathon
+MUST use API_BASE_URL and API_KEY from environment (LiteLLM proxy)
 """
 
 import os
@@ -8,16 +10,41 @@ import sys
 from typing import List, Optional
 from openai import OpenAI
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
+# ============================================
+# CRITICAL: Read environment variables as required
+# These are injected by the hackathon platform
+# ============================================
+API_BASE_URL = os.getenv("API_BASE_URL")
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
 BENCHMARK = "content-moderation-openenv"
 MAX_STEPS = 20
 TEMPERATURE = 0.2
 MAX_TOKENS = 50
 
+# ============================================
+# VALIDATION: Check if API credentials are present
+# If not, the submission will FAIL - this is intentional
+# ============================================
+if not API_BASE_URL:
+    print("[DEBUG] ERROR: API_BASE_URL environment variable not set", file=sys.stderr, flush=True)
+    sys.exit(1)
+
+if not API_KEY:
+    print("[DEBUG] ERROR: API_KEY environment variable not set", file=sys.stderr, flush=True)
+    sys.exit(1)
+
+print(f"[DEBUG] Using API_BASE_URL: {API_BASE_URL}", file=sys.stderr, flush=True)
+print(f"[DEBUG] Using MODEL_NAME: {MODEL_NAME}", file=sys.stderr, flush=True)
+
+# Import environment
 from environment.moderation_env import ModerationEnv
 from environment.models import ModerationAction
+
+# ============================================
+# Initialize OpenAI client with hackathon proxy
+# ============================================
+client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 SYSTEM_PROMPT = """You are an AI content moderator. Your task is to analyze content and decide:
 - ALLOW: Content is safe and appropriate
@@ -48,7 +75,8 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     )
 
 
-def get_model_action(client: OpenAI, observation: dict) -> ModerationAction:
+def get_model_action(observation: dict) -> ModerationAction:
+    """Get action from OpenAI model using hackathon proxy"""
     text = observation.get('text', '')
     user_rep = observation.get('user_reputation', [0.5])[0] if isinstance(observation.get('user_reputation'), list) else observation.get('user_reputation', 0.5)
     reports = observation.get('report_count', 0)
@@ -79,10 +107,13 @@ Choose: ALLOW, FLAG, or REMOVE"""
         else:
             return ModerationAction.ALLOW
     except Exception as e:
+        print(f"[DEBUG] API call failed: {e}", file=sys.stderr, flush=True)
+        # Fallback to heuristic (but this should not happen in production)
         return heuristic_decision(observation)
 
 
 def heuristic_decision(observation: dict) -> ModerationAction:
+    """Fallback heuristic when API is unavailable"""
     text = observation.get('text', '').lower()
     
     violence_words = ['hate', 'kill', 'die', 'murder', 'violence', 'blood']
@@ -98,7 +129,8 @@ def heuristic_decision(observation: dict) -> ModerationAction:
     return ModerationAction.ALLOW
 
 
-def run_task(env: ModerationEnv, task_name: str, client: Optional[OpenAI]) -> tuple:
+def run_task(env: ModerationEnv, task_name: str) -> tuple:
+    """Run a single task and return results"""
     rewards = []
     steps_taken = 0
     success = False
@@ -109,11 +141,8 @@ def run_task(env: ModerationEnv, task_name: str, client: Optional[OpenAI]) -> tu
         if env.current_step >= env.max_steps:
             break
         
-        if client and API_KEY:
-            action_enum = get_model_action(client, observation)
-        else:
-            action_enum = heuristic_decision(observation)
-        
+        # ALWAYS call the API through the proxy
+        action_enum = get_model_action(observation)
         action_str = action_enum.value
         
         observation, reward, done, _, info = env.step(action_enum)
@@ -134,12 +163,7 @@ def run_task(env: ModerationEnv, task_name: str, client: Optional[OpenAI]) -> tu
 
 
 def main():
-    client = None
-    if API_KEY:
-        try:
-            client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-        except Exception as e:
-            pass
+    """Run all 3 tasks with proper logging format"""
     
     tasks = [
         ('easy', 'data/dataset_easy.json', 15),
@@ -148,22 +172,20 @@ def main():
     ]
     
     for task_name, dataset_path, max_steps in tasks:
-        log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME if API_KEY else "heuristic")
+        log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
         
         try:
-            # CRITICAL: Set render_mode=None to suppress extra output
             env = ModerationEnv(
                 dataset_path=dataset_path,
                 max_steps=max_steps,
                 task_difficulty=task_name,
-                render_mode=None  # ← SILENT MODE - NO EXTRA PRINTS
+                render_mode=None
             )
             
-            success, steps, score, rewards = run_task(env, task_name, client)
+            success, steps, score, rewards = run_task(env, task_name)
             log_end(success=success, steps=steps, score=score, rewards=rewards)
         except Exception as e:
             log_end(success=False, steps=0, score=0.0, rewards=[])
-            import sys
             print(f"DEBUG: Task {task_name} failed: {e}", file=sys.stderr, flush=True)
 
 
