@@ -2,17 +2,15 @@
 """
 OpenEnv Baseline Inference Script for Content Moderation Environment
 Follows strict [START]/[STEP]/[END] format required for hackathon
-MUST use API_BASE_URL and API_KEY from environment (LiteLLM proxy)
 """
 
 import os
 import sys
 from typing import List, Optional
-import httpx
 from openai import OpenAI
 
 # ============================================
-# Read environment variables as injected by hackathon
+# Read environment variables (injected by hackathon)
 # ============================================
 API_BASE_URL = os.environ.get("API_BASE_URL")
 API_KEY = os.environ.get("API_KEY")
@@ -23,22 +21,19 @@ TEMPERATURE = 0.2
 MAX_TOKENS = 50
 
 # ============================================
-# Validation: Exit if credentials are missing
+# Validate credentials
 # ============================================
 if not API_BASE_URL:
-    print("[DEBUG] ERROR: API_BASE_URL environment variable not set", file=sys.stderr, flush=True)
+    print("[DEBUG] ERROR: API_BASE_URL not set", file=sys.stderr, flush=True)
     sys.exit(1)
 
 if not API_KEY:
-    print("[DEBUG] ERROR: API_KEY environment variable not set", file=sys.stderr, flush=True)
+    print("[DEBUG] ERROR: API_KEY not set", file=sys.stderr, flush=True)
     sys.exit(1)
 
-# Ensure URL has /v1 suffix for OpenAI client
-if not API_BASE_URL.endswith("/v1"):
-    if API_BASE_URL.endswith("/"):
-        API_BASE_URL = API_BASE_URL + "v1"
-    else:
-        API_BASE_URL = API_BASE_URL + "/v1"
+# Remove /v1 if present (LiteLLM proxy doesn't need it)
+if API_BASE_URL.endswith("/v1"):
+    API_BASE_URL = API_BASE_URL[:-3]
 
 print(f"[DEBUG] Using API_BASE_URL: {API_BASE_URL}", file=sys.stderr, flush=True)
 print(f"[DEBUG] Using MODEL_NAME: {MODEL_NAME}", file=sys.stderr, flush=True)
@@ -48,11 +43,9 @@ from environment.moderation_env import ModerationEnv
 from environment.models import ModerationAction
 
 # ============================================
-# Initialize OpenAI client with hackathon proxy
-# Use a custom httpx client with longer timeout
+# Initialize OpenAI client
 # ============================================
-http_client = httpx.Client(timeout=httpx.Timeout(60.0))
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY, http_client=http_client)
+client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 SYSTEM_PROMPT = """You are an AI content moderator. Your task is to analyze content and decide:
 - ALLOW: Content is safe and appropriate
@@ -117,7 +110,6 @@ Choose: ALLOW, FLAG, or REMOVE"""
             return ModerationAction.ALLOW
     except Exception as e:
         print(f"[DEBUG] API call failed: {e}", file=sys.stderr, flush=True)
-        # Fallback to heuristic
         return heuristic_decision(observation)
 
 
