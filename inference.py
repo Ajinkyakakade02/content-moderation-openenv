@@ -7,7 +7,8 @@ Follows strict [START]/[STEP]/[END] format required for hackathon
 import os
 import sys
 import json
-import requests
+import urllib.request
+import urllib.error
 from typing import List, Optional
 
 # ============================================
@@ -68,65 +69,74 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     )
 
 
-def get_model_action(observation: dict) -> ModerationAction:
-    """Get action from LLM using manual HTTP request to LiteLLM proxy"""
-    text = observation.get('text', '')
-    user_rep = observation.get('user_reputation', [0.5])[0] if isinstance(observation.get('user_reputation'), list) else observation.get('user_reputation', 0.5)
-    reports = observation.get('report_count', 0)
-    
-    # Construct the prompt
-    user_prompt = f"""Content: "{text}"
-User reputation: {user_rep:.2f}/1.0
-Report count: {reports}
-
-Choose: ALLOW, FLAG, or REMOVE"""
-    
-    # Prepare the request payload for OpenAI-compatible API
+def call_llm(prompt: str) -> str:
+    """Make HTTP request using urllib (no external dependencies)"""
     payload = {
         "model": MODEL_NAME,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": prompt}
         ],
         "temperature": TEMPERATURE,
         "max_tokens": MAX_TOKENS,
     }
     
-    # Determine the correct endpoint URL
-    # Try different possible endpoints
     endpoints_to_try = [
         f"{API_BASE_URL}/v1/chat/completions",
         f"{API_BASE_URL}/chat/completions",
-        f"{API_BASE_URL}/completions",
     ]
     
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}",
-    }
+    data = json.dumps(payload).encode('utf-8')
     
     for endpoint in endpoints_to_try:
         try:
-            response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
-            if response.status_code == 200:
-                result = response.json()
+            req = urllib.request.Request(
+                endpoint,
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {API_KEY}",
+                },
+                method="POST"
+            )
+            
+            with urllib.request.urlopen(req, timeout=30) as response:
+                result = json.loads(response.read().decode('utf-8'))
                 action_text = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
-                
-                if action_text == 'ALLOW':
-                    return ModerationAction.ALLOW
-                elif action_text == 'FLAG':
-                    return ModerationAction.FLAG
-                elif action_text == 'REMOVE':
-                    return ModerationAction.REMOVE
-                else:
-                    return ModerationAction.ALLOW
+                if action_text in ['ALLOW', 'FLAG', 'REMOVE']:
+                    return action_text
         except Exception as e:
             print(f"[DEBUG] Endpoint {endpoint} failed: {e}", file=sys.stderr, flush=True)
             continue
     
-    # If all endpoints fail, fall back to heuristic
-    print("[DEBUG] All API endpoints failed, using heuristic", file=sys.stderr, flush=True)
-    return heuristic_decision(observation)
+    return "ALLOW"  # Default fallback
+
+
+def get_model_action(observation: dict) -> ModerationAction:
+    """Get action from LLM using manual HTTP request"""
+    text = observation.get('text', '')
+    user_rep = observation.get('user_reputation', [0.5])[0] if isinstance(observation.get('user_reputation'), list) else observation.get('user_reputation', 0.5)
+    reports = observation.get('report_count', 0)
+    
+    prompt = f"""Content: "{text}"
+User reputation: {user_rep:.2f}/1.0
+Report count: {reports}
+
+Choose: ALLOW, FLAG, or REMOVE"""
+    
+    try:
+        action_text = call_llm(prompt)
+        if action_text == 'ALLOW':
+            return ModerationAction.ALLOW
+        elif action_text == 'FLAG':
+            return ModerationAction.FLAG
+        elif action_text == 'REMOVE':
+            return ModerationAction.REMOVE
+        else:
+            return ModerationAction.ALLOW
+    except Exception as e:
+        print(f"[DEBUG] API call failed: {e}", file=sys.stderr, flush=True)
+        return heuristic_decision(observation)
 
 
 def heuristic_decision(observation: dict) -> ModerationAction:
