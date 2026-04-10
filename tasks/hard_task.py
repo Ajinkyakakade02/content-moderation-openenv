@@ -1,4 +1,3 @@
- 
 from environment.moderation_env import ModerationEnv
 from environment.models import ModerationAction
 from graders.grader import ModerationGrader
@@ -22,7 +21,7 @@ class HardTask:
         self.decision_times = []
     
     def run(self, agent) -> float:
-        """Run task with time constraints and return score"""
+        """Run task with time constraints and return score strictly between 0 and 1"""
         
         observation, info = self.env.reset()
         done = False
@@ -50,8 +49,8 @@ class HardTask:
                 print(f"❌ Time limit exceeded! {decision_time:.2f}s > {self.time_limit}s")
                 break
             
-            # Execute step
-            observation, reward, done, _, info = self.env.step(action)
+            # Execute step - FIXED: use action_enum
+            observation, reward, done, _, info = self.env.step(action_enum)
             
             # Grade decision
             if self.env.current_content and hasattr(self.env.current_content, 'true_label'):
@@ -75,18 +74,18 @@ class HardTask:
         if decisions:
             actions = [d['action'] for d in decisions]
             unique_actions = len(set(actions))
-            consistency = 1 - (unique_actions - 1) / 2  # Normalized: 3 actions = 0, 1 action = 1
+            consistency = 1 - (unique_actions - 1) / 2
         else:
             consistency = 0
         
         # Final score balancing accuracy, efficiency, and consistency
-        final_score = (
-            0.5 * base_score +      # Accuracy
-            0.3 * efficiency +       # Speed
-            0.2 * consistency        # Consistency
-        )
+        final_score = 0.5 * base_score + 0.3 * efficiency + 0.2 * consistency
         
-        final_score = max(0.0, min(1.0, final_score))
+        # CRITICAL FIX: Score must be strictly between 0 and 1
+        if final_score <= 0.0:
+            final_score = 0.001
+        if final_score >= 1.0:
+            final_score = 0.999
         
         print(f"\n✅ Hard Task Score: {final_score:.3f}/1.0")
         print(f"   Base Accuracy: {base_score:.3f}")
