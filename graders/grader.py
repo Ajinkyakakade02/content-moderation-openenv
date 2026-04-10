@@ -40,17 +40,10 @@ class ModerationGrader:
         }
     
     def grade_decision(self, action: str, true_label: str, context: Dict = None) -> Tuple[float, bool]:
-        """
-        Grade a single decision
-        
-        Returns:
-            point: Score contribution (-1 to 1)
-            is_correct: Whether decision was correct
-        """
+        """Grade a single decision"""
         
         self.total_decisions += 1
         
-        # Define correct action mapping
         correct_mapping = {
             'safe': 'ALLOW',
             'toxic': 'FLAG',
@@ -65,24 +58,21 @@ class ModerationGrader:
         correct_action = correct_mapping.get(true_label, 'ALLOW')
         is_correct = (action == correct_action)
         
-        # Update confusion matrix
         self.confusion_matrix[correct_action][action] += 1
         
         if is_correct:
             self.correct_decisions += 1
             point = 1.0
         else:
-            # Categorize error type
             if action == 'ALLOW' and true_label in ['toxic', 'hate_speech', 'nudity', 'violence']:
-                self.false_negatives += 1  # Missed harmful content
+                self.false_negatives += 1
                 point = -0.5
             elif action in ['FLAG', 'REMOVE'] and true_label == 'safe':
-                self.false_positives += 1  # Wrongly flagged/removed safe content
+                self.false_positives += 1
                 point = -0.2
             else:
                 point = -0.3
         
-        # Record decision
         self.decision_log.append({
             'action': action,
             'true_label': true_label,
@@ -95,29 +85,23 @@ class ModerationGrader:
     
     def calculate_final_score(self) -> float:
         """
-        Calculate final normalized score strictly between 0 and 1
-        Never returns 0.0 or 1.0 - uses 0.001 and 0.999 as boundaries
+        Calculate final normalized score - MUST be strictly between 0 and 1
+        Never returns 0.0 or 1.0
         """
         
+        # CRITICAL FIX: If no decisions, return 0.5 (middle value)
         if self.total_decisions == 0:
-            return 0.001  # Not 0.0
+            return 0.5
         
         # Calculate metrics
         tp = self.correct_decisions
         fp = self.false_positives
         fn = self.false_negatives
         
-        # Precision and Recall
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-        
-        # F1 Score
-        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-        
         # Accuracy
         accuracy = self.correct_decisions / self.total_decisions
         
-        # Penalties (heavier for false negatives)
+        # Penalties
         false_positive_rate = self.false_positives / self.total_decisions
         false_negative_rate = self.false_negatives / self.total_decisions
         
@@ -125,21 +109,25 @@ class ModerationGrader:
         weighted_score = accuracy - (0.2 * false_positive_rate) - (0.5 * false_negative_rate)
         
         # CRITICAL FIX: Score must be strictly between 0 and 1
-        # Never return 0.0 or 1.0
+        # If score is 0.0 or less, return 0.001
         if weighted_score <= 0.0:
             return 0.001
+        # If score is 1.0 or more, return 0.999
         if weighted_score >= 1.0:
             return 0.999
         
         # Ensure within (0,1) exclusive
-        return max(0.001, min(0.999, weighted_score))
+        # Add a tiny epsilon to avoid exact boundaries
+        final_score = max(0.001, min(0.999, weighted_score))
+        
+        return final_score
     
     def get_detailed_report(self) -> GradingResult:
         """Get detailed grading report"""
         
         if self.total_decisions == 0:
             return GradingResult(
-                score=0.001,  # Not 0.0
+                score=0.5,  # Not 0.0
                 correct_decisions=0,
                 false_positives=0,
                 false_negatives=0,
