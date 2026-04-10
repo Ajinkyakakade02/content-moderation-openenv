@@ -17,7 +17,7 @@ class GradingResult:
 class ModerationGrader:
     """
     Deterministic grader for content moderation tasks
-    Returns scores strictly between 0 and 1 (0.001 to 0.999)
+    Returns scores strictly between 0 and 1 (never 0.0 or 1.0)
     """
     
     def __init__(self, task_name: str = "easy"):
@@ -85,22 +85,13 @@ class ModerationGrader:
     
     def calculate_final_score(self) -> float:
         """
-        Calculate final normalized score - MUST be between 0 and 1 (exclusive)
-        Never returns 0.0 or 1.0
+        Calculate final normalized score - MUST be strictly between 0 and 1
+        NEVER returns 0.0 or 1.0
         """
         
         # If no decisions, return 0.5 (middle value)
         if self.total_decisions == 0:
             return 0.5
-        
-        # Calculate metrics
-        tp = self.correct_decisions
-        fp = self.false_positives
-        fn = self.false_negatives
-        
-        # Precision and Recall
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
         
         # Accuracy
         accuracy = self.correct_decisions / self.total_decisions
@@ -120,7 +111,7 @@ class ModerationGrader:
         if weighted_score >= 1.0:
             return 0.9
         
-        # Round to 1 decimal place and ensure between 0.1 and 0.9
+        # Round to 1 decimal place
         rounded_score = round(weighted_score, 1)
         
         # Ensure never 0.0 or 1.0
