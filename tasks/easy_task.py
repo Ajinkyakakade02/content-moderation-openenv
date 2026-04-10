@@ -33,7 +33,7 @@ class EasyTask:
             action = agent.decide(observation)
             action_enum = ModerationAction(action) if isinstance(action, int) else action
             
-            # Execute step - FIXED: use action_enum, not action
+            # Execute step
             observation, reward, done, _, info = self.env.step(action_enum)
             
             # Grade decision
@@ -48,11 +48,11 @@ class EasyTask:
         # Calculate final score
         score = self.grader.calculate_final_score()
         
-        # CRITICAL FIX: Score must be strictly between 0 and 1
+        # Final safety clamp - NEVER return 0.0 or 1.0
         if score <= 0.0:
-            score = 0.001
+            score = 0.1
         if score >= 1.0:
-            score = 0.999
+            score = 0.9
         
         print(f"\n✅ Easy Task Score: {score:.3f}/1.0")
         
