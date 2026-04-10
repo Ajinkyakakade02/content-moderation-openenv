@@ -2,28 +2,23 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install minimal system dependencies
+# Install system dependencies for OpenCV and AI models
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (better caching)
 COPY requirements.txt .
 
-# Install Python dependencies - ADDED requests
-RUN pip install --no-cache-dir --default-timeout=100 \
-    flask==2.3.0 \
-    flask-cors==4.0.0 \
-    gunicorn==21.2.0 \
-    pillow==10.1.0 \
-    numpy==1.24.3 \
-    pydantic==2.5.0 \
-    gymnasium==0.29.1 \
-    python-dotenv==1.0.0 \
-    scikit-learn==1.3.2 \
-    openai==1.0.0 \
-    requests==2.31.0
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy all application files
 COPY . .
