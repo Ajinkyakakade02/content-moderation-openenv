@@ -17,7 +17,7 @@ class GradingResult:
 class ModerationGrader:
     """
     Deterministic grader for content moderation tasks
-    Returns scores strictly between 0 and 1 (not including 0.0 or 1.0)
+    Returns scores strictly between 0 and 1 (not 0.0 or 1.0)
     """
     
     def __init__(self, task_name: str = "easy"):
@@ -89,14 +89,9 @@ class ModerationGrader:
         Never returns 0.0 or 1.0
         """
         
-        # If no decisions, return 0.5 (middle value, not 0.0)
+        # If no decisions, return 0.5 (middle value)
         if self.total_decisions == 0:
             return 0.5
-        
-        # Calculate metrics
-        tp = self.correct_decisions
-        fp = self.false_positives
-        fn = self.false_negatives
         
         # Accuracy
         accuracy = self.correct_decisions / self.total_decisions
@@ -108,25 +103,23 @@ class ModerationGrader:
         # Weighted score
         weighted_score = accuracy - (0.2 * false_positive_rate) - (0.5 * false_negative_rate)
         
-        # CRITICAL FIX: Score must be strictly between 0 and 1
-        # If score is 0.0 or less, return 0.001
+        # CRITICAL: Score must be strictly between 0 and 1
+        # Map any score <= 0 to 0.001
         if weighted_score <= 0.0:
             return 0.001
-        # If score is 1.0 or more, return 0.999
+        # Map any score >= 1 to 0.999
         if weighted_score >= 1.0:
             return 0.999
         
-        # Ensure within (0,1) exclusive
-        final_score = max(0.001, min(0.999, weighted_score))
-        
-        return final_score
+        # Ensure within (0,1) exclusive with small buffer
+        return max(0.001, min(0.999, weighted_score))
     
     def get_detailed_report(self) -> GradingResult:
         """Get detailed grading report"""
         
         if self.total_decisions == 0:
             return GradingResult(
-                score=0.5,  # Not 0.0
+                score=0.5,
                 correct_decisions=0,
                 false_positives=0,
                 false_negatives=0,
