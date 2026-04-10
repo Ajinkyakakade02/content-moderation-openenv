@@ -1,4 +1,3 @@
- 
 from environment.moderation_env import ModerationEnv
 from environment.models import ModerationAction
 from graders.grader import ModerationGrader
@@ -20,7 +19,7 @@ class MediumTask:
         self.ambiguity_scores = []
     
     def run(self, agent) -> float:
-        """Run task with agent and return score 0.0-1.0"""
+        """Run task with agent and return score strictly between 0 and 1"""
         
         observation, info = self.env.reset()
         done = False
@@ -40,8 +39,8 @@ class MediumTask:
             action = agent.decide(observation, context={'ambiguity': ambiguity})
             action_enum = ModerationAction(action) if isinstance(action, int) else action
             
-            # Execute step
-            observation, reward, done, _, info = self.env.step(action)
+            # Execute step - FIXED: use action_enum
+            observation, reward, done, _, info = self.env.step(action_enum)
             
             # Grade decision
             if self.env.current_content and hasattr(self.env.current_content, 'true_label'):
@@ -59,7 +58,13 @@ class MediumTask:
         
         # Penalize for mishandling ambiguous content
         ambiguity_penalty = avg_ambiguity * 0.2
-        final_score = max(0.0, min(1.0, base_score * (1 - ambiguity_penalty)))
+        final_score = base_score * (1 - ambiguity_penalty)
+        
+        # CRITICAL FIX: Score must be strictly between 0 and 1
+        if final_score <= 0.0:
+            final_score = 0.001
+        if final_score >= 1.0:
+            final_score = 0.999
         
         print(f"\n✅ Medium Task Score: {final_score:.3f}/1.0")
         print(f"   Base: {base_score:.3f} | Ambiguity Penalty: {ambiguity_penalty:.3f}")
