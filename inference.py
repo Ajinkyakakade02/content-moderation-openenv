@@ -1,25 +1,32 @@
 #!/usr/bin/env python3
 """
-OpenEnv Baseline Inference Script - Corrected for LiteLLM Proxy
+OpenEnv Baseline Inference Script - No external dependencies
+Uses urllib (built-in) instead of requests
 """
 
 import os
 import sys
 import json
-import requests
+import urllib.request
+import urllib.error
 from typing import List, Optional
 
+# Read environment variables
+API_BASE_URL = os.environ.get("API_BASE_URL", "")
+API_KEY = os.environ.get("API_KEY", "")
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
 BENCHMARK = "content-moderation-openenv"
 MAX_STEPS = 20
 
-# Read environment variables
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://litellm.sclr.ac")
-API_KEY = os.environ.get("API_KEY", "")
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
+# Validate
+if not API_BASE_URL or not API_KEY:
+    print("ERROR: API_BASE_URL and API_KEY must be set", file=sys.stderr)
+    sys.exit(1)
+
+# Remove trailing slash if present
+API_BASE_URL = API_BASE_URL.rstrip('/')
 
 print(f"[DEBUG] API_BASE_URL: {API_BASE_URL}", file=sys.stderr, flush=True)
-print(f"[DEBUG] API_KEY present: {bool(API_KEY)}", file=sys.stderr, flush=True)
-print(f"[DEBUG] MODEL_NAME: {MODEL_NAME}", file=sys.stderr, flush=True)
 
 from environment.moderation_env import ModerationEnv
 from environment.models import ModerationAction
@@ -31,8 +38,7 @@ def log_start(task: str, env: str, model: str) -> None:
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
-    done_val = str(done).lower()
-    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}", flush=True)
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
@@ -40,25 +46,10 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 
-def call_litellm_api(text: str, user_rep: float, reports: int) -> str:
-    """Make API call to LiteLLM proxy"""
+def call_llm_api(text: str) -> str:
+    """Make API call using urllib (built-in, no extra dependencies)"""
     
-    prompt = f"""Content: "{text}"
-User reputation: {user_rep:.2f}/1.0
-Report count: {reports}
-
-Choose: ALLOW, FLAG, or REMOVE"""
-    
-    # Try both possible endpoints
-    endpoints = [
-        f"{API_BASE_URL}/chat/completions",
-        f"{API_BASE_URL}/v1/chat/completions",
-    ]
-    
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}",
-    }
+    prompt = f"Content: {text}\nChoose: ALLOW, FLAG, or REMOVE"
     
     payload = {
         "model": MODEL_NAME,
@@ -70,68 +61,61 @@ Choose: ALLOW, FLAG, or REMOVE"""
         "temperature": 0,
     }
     
+    endpoints = [
+        f"{API_BASE_URL}/chat/completions",
+        f"{API_BASE_URL}/v1/chat/completions",
+    ]
+    
+    data = json.dumps(payload).encode('utf-8')
+    
     for endpoint in endpoints:
         try:
-            response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
-            print(f"[DEBUG] {endpoint} -> Status: {response.status_code}", file=sys.stderr, flush=True)
-            
-            if response.status_code == 200:
-                result = response.json()
+            req = urllib.request.Request(
+                endpoint,
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {API_KEY}",
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=30) as response:
+                result = json.loads(response.read().decode('utf-8'))
                 action = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
                 if action in ['ALLOW', 'FLAG', 'REMOVE']:
                     return action
         except Exception as e:
-            print(f"[DEBUG] Error: {e}", file=sys.stderr, flush=True)
+            print(f"[DEBUG] Endpoint {endpoint} failed: {e}", file=sys.stderr, flush=True)
     
-    return "ALLOW"
+    # Fallback to heuristic
+    text_lower = text.lower()
+    if any(w in text_lower for w in ['hate', 'kill', 'die', 'violence', 'blood']):
+        return 'REMOVE'
+    if any(w in text_lower for w in ['stupid', 'idiot', 'fuck', 'shit']):
+        return 'FLAG'
+    return 'ALLOW'
 
 
-def heuristic_decision(observation: dict) -> ModerationAction:
-    text = observation.get('text', '').lower()
-    violence_words = ['hate', 'kill', 'die', 'murder', 'violence', 'blood', 'attack']
-    for word in violence_words:
-        if word in text:
-            return ModerationAction.REMOVE
-    profanity_words = ['stupid', 'idiot', 'fuck', 'shit', 'bitch', 'asshole']
-    for word in profanity_words:
-        if word in text:
-            return ModerationAction.FLAG
-    return ModerationAction.ALLOW
-
-
-def get_model_action(observation: dict) -> ModerationAction:
-    """Get action from API or heuristic"""
-    text = observation.get('text', '')
-    user_rep = observation.get('user_reputation', [0.5])[0] if isinstance(observation.get('user_reputation'), list) else observation.get('user_reputation', 0.5)
-    reports = observation.get('report_count', 0)
-    
-    if API_KEY:
-        action_text = call_litellm_api(text, user_rep, reports)
-        if action_text == 'ALLOW':
-            return ModerationAction.ALLOW
-        elif action_text == 'FLAG':
-            return ModerationAction.FLAG
-        elif action_text == 'REMOVE':
-            return ModerationAction.REMOVE
-    
-    return heuristic_decision(observation)
-
-
-def run_task(env: ModerationEnv, task_name: str) -> tuple:
+def run_task(env: ModerationEnv) -> tuple:
     rewards = []
     steps_taken = 0
-    observation, info = env.reset()
+    observation, _ = env.reset()
     
     for step in range(1, MAX_STEPS + 1):
         if env.current_step >= env.max_steps:
             break
         
-        action_enum = get_model_action(observation)
-        observation, reward, done, _, info = env.step(action_enum)
+        text = observation.get('text', '')
+        action_str = call_llm_api(text)
+        
+        action_map = {'ALLOW': 0, 'FLAG': 1, 'REMOVE': 2}
+        action_enum = ModerationAction(action_map.get(action_str, 0))
+        
+        observation, reward, done, _, _ = env.step(action_enum)
         rewards.append(reward)
         steps_taken = step
         
-        log_step(step=step, action=action_enum.value, reward=reward, done=done, error=None)
+        log_step(step=step, action=action_str, reward=reward, done=done, error=None)
         
         if done:
             break
@@ -151,7 +135,7 @@ def main():
     for task_name, dataset_path, max_steps in tasks:
         log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
         env = ModerationEnv(dataset_path, max_steps, task_name, render_mode=None)
-        success, steps, score, rewards = run_task(env, task_name)
+        success, steps, score, rewards = run_task(env)
         log_end(success=success, steps=steps, score=score, rewards=rewards)
 
 
