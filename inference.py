@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
 OpenEnv Baseline Inference Script for Content Moderation Environment
+Uses requests library (more stable than OpenAI client)
 """
 
 import os
 import sys
+import json
+import requests
 from typing import List, Optional
-from openai import OpenAI
 
 # Read environment variables
 API_BASE_URL = os.environ.get("API_BASE_URL")
@@ -19,8 +21,10 @@ if not API_BASE_URL or not API_KEY:
     print("ERROR: API_BASE_URL and API_KEY must be set", file=sys.stderr)
     sys.exit(1)
 
-# Initialize OpenAI client (MANDATORY for hackathon)
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+# Remove trailing slash if present
+API_BASE_URL = API_BASE_URL.rstrip('/')
+
+print(f"[DEBUG] API_BASE_URL: {API_BASE_URL}", file=sys.stderr, flush=True)
 
 from environment.moderation_env import ModerationEnv
 from environment.models import ModerationAction
@@ -40,28 +44,52 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 
-def get_action_from_llm(text: str) -> str:
-    """Get action from LLM using OpenAI client"""
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": "You are a content moderator. Respond with ONLY: ALLOW, FLAG, or REMOVE."},
-                {"role": "user", "content": f"Content: {text}\nChoose: ALLOW, FLAG, or REMOVE"}
-            ],
-            max_tokens=10,
-            temperature=0,
-        )
-        return response.choices[0].message.content.strip().upper()
-    except Exception as e:
-        print(f"[DEBUG] API error: {e}", file=sys.stderr)
-        # Fallback to heuristic
-        text_lower = text.lower()
-        if any(w in text_lower for w in ['hate', 'kill', 'die', 'violence', 'blood']):
-            return 'REMOVE'
-        if any(w in text_lower for w in ['stupid', 'idiot', 'fuck', 'shit']):
-            return 'FLAG'
-        return 'ALLOW'
+def call_llm_api(text: str) -> str:
+    """Make API call using requests (stable, no version conflicts)"""
+    
+    prompt = f"Content: {text}\nChoose: ALLOW, FLAG, or REMOVE"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}",
+    }
+    
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": "You are a content moderator. Respond with ONLY: ALLOW, FLAG, or REMOVE."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 10,
+        "temperature": 0,
+    }
+    
+    # Try both possible endpoints
+    endpoints = [
+        f"{API_BASE_URL}/chat/completions",
+        f"{API_BASE_URL}/v1/chat/completions",
+    ]
+    
+    for endpoint in endpoints:
+        try:
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+            print(f"[DEBUG] Endpoint {endpoint} -> Status: {response.status_code}", file=sys.stderr, flush=True)
+            
+            if response.status_code == 200:
+                result = response.json()
+                action = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
+                if action in ['ALLOW', 'FLAG', 'REMOVE']:
+                    return action
+        except Exception as e:
+            print(f"[DEBUG] Endpoint failed: {e}", file=sys.stderr, flush=True)
+    
+    # Fallback to heuristic
+    text_lower = text.lower()
+    if any(w in text_lower for w in ['hate', 'kill', 'die', 'violence', 'blood']):
+        return 'REMOVE'
+    if any(w in text_lower for w in ['stupid', 'idiot', 'fuck', 'shit']):
+        return 'FLAG'
+    return 'ALLOW'
 
 
 def run_task(env: ModerationEnv) -> tuple:
@@ -74,7 +102,7 @@ def run_task(env: ModerationEnv) -> tuple:
             break
 
         text = observation.get('text', '')
-        action_str = get_action_from_llm(text)
+        action_str = call_llm_api(text)
         
         # Map string to ModerationAction
         if action_str == 'ALLOW':
@@ -108,7 +136,6 @@ def main():
     for task_name, dataset_path, max_steps in tasks:
         log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
         
-        # FIXED: Use keyword arguments properly
         env = ModerationEnv(
             dataset_path=dataset_path,
             max_steps=max_steps,
