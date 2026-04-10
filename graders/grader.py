@@ -89,7 +89,7 @@ class ModerationGrader:
         Never returns 0.0 or 1.0
         """
         
-        # CRITICAL FIX: If no decisions, return 0.5 (middle value)
+        # If no decisions, return 0.5 (middle value, not 0.0)
         if self.total_decisions == 0:
             return 0.5
         
@@ -117,7 +117,6 @@ class ModerationGrader:
             return 0.999
         
         # Ensure within (0,1) exclusive
-        # Add a tiny epsilon to avoid exact boundaries
         final_score = max(0.001, min(0.999, weighted_score))
         
         return final_score
