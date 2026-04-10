@@ -122,8 +122,28 @@ def run_task(env: ModerationEnv) -> tuple:
             break
 
     max_possible = env.max_steps * 1.0
-    score = min(max(sum(rewards) / max_possible, 0.0), 1.0) if max_possible > 0 else 0.0
-    return score >= 0.5, steps_taken, score, rewards
+    if max_possible > 0:
+        raw_score = sum(rewards) / max_possible
+    else:
+        raw_score = 0.5
+    
+    # CRITICAL FIX: Score must be strictly between 0 and 1
+    # Clamp to safe range (0.01 to 0.99)
+    if raw_score <= 0.0:
+        final_score = 0.1
+    elif raw_score >= 1.0:
+        final_score = 0.9
+    else:
+        final_score = raw_score
+    
+    # Ensure never exactly 0.0 or 1.0
+    if final_score <= 0.0:
+        final_score = 0.1
+    if final_score >= 1.0:
+        final_score = 0.9
+    
+    success = final_score >= 0.5
+    return success, steps_taken, final_score, rewards
 
 
 def main():
