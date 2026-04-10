@@ -1,4 +1,3 @@
- 
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
@@ -18,7 +17,7 @@ class GradingResult:
 class ModerationGrader:
     """
     Deterministic grader for content moderation tasks
-    Returns scores between 0.0 and 1.0
+    Returns scores strictly between 0 and 1 (not including 0.0 or 1.0)
     """
     
     def __init__(self, task_name: str = "easy"):
@@ -96,12 +95,12 @@ class ModerationGrader:
     
     def calculate_final_score(self) -> float:
         """
-        Calculate final normalized score between 0 and 1
-        Uses weighted F1 score with penalties
+        Calculate final normalized score strictly between 0 and 1
+        Never returns 0.0 or 1.0 - uses 0.001 and 0.999 as boundaries
         """
         
         if self.total_decisions == 0:
-            return 0.0
+            return 0.001  # Not 0.0
         
         # Calculate metrics
         tp = self.correct_decisions
@@ -125,17 +124,22 @@ class ModerationGrader:
         # Weighted score
         weighted_score = accuracy - (0.2 * false_positive_rate) - (0.5 * false_negative_rate)
         
-        # Final score (0-1)
-        final_score = max(0.0, min(1.0, weighted_score))
+        # CRITICAL FIX: Score must be strictly between 0 and 1
+        # Never return 0.0 or 1.0
+        if weighted_score <= 0.0:
+            return 0.001
+        if weighted_score >= 1.0:
+            return 0.999
         
-        return final_score
+        # Ensure within (0,1) exclusive
+        return max(0.001, min(0.999, weighted_score))
     
     def get_detailed_report(self) -> GradingResult:
         """Get detailed grading report"""
         
         if self.total_decisions == 0:
             return GradingResult(
-                score=0.0,
+                score=0.001,  # Not 0.0
                 correct_decisions=0,
                 false_positives=0,
                 false_negatives=0,
