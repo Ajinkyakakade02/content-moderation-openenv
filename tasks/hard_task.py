@@ -49,7 +49,7 @@ class HardTask:
                 print(f"❌ Time limit exceeded! {decision_time:.2f}s > {self.time_limit}s")
                 break
             
-            # Execute step - FIXED: use action_enum
+            # Execute step
             observation, reward, done, _, info = self.env.step(action_enum)
             
             # Grade decision
@@ -81,11 +81,11 @@ class HardTask:
         # Final score balancing accuracy, efficiency, and consistency
         final_score = 0.5 * base_score + 0.3 * efficiency + 0.2 * consistency
         
-        # CRITICAL FIX: Score must be strictly between 0 and 1
+        # Final safety clamp - NEVER return 0.0 or 1.0
         if final_score <= 0.0:
-            final_score = 0.001
+            final_score = 0.1
         if final_score >= 1.0:
-            final_score = 0.999
+            final_score = 0.9
         
         print(f"\n✅ Hard Task Score: {final_score:.3f}/1.0")
         print(f"   Base Accuracy: {base_score:.3f}")
