@@ -17,7 +17,7 @@ class GradingResult:
 class ModerationGrader:
     """
     Deterministic grader for content moderation tasks
-    Returns scores strictly between 0 and 1 (not 0.0 or 1.0)
+    Returns scores strictly between 0 and 1 (0.001 to 0.999)
     """
     
     def __init__(self, task_name: str = "easy"):
@@ -85,13 +85,22 @@ class ModerationGrader:
     
     def calculate_final_score(self) -> float:
         """
-        Calculate final normalized score - MUST be strictly between 0 and 1
+        Calculate final normalized score - MUST be between 0 and 1 (exclusive)
         Never returns 0.0 or 1.0
         """
         
         # If no decisions, return 0.5 (middle value)
         if self.total_decisions == 0:
             return 0.5
+        
+        # Calculate metrics
+        tp = self.correct_decisions
+        fp = self.false_positives
+        fn = self.false_negatives
+        
+        # Precision and Recall
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
         
         # Accuracy
         accuracy = self.correct_decisions / self.total_decisions
@@ -104,15 +113,23 @@ class ModerationGrader:
         weighted_score = accuracy - (0.2 * false_positive_rate) - (0.5 * false_negative_rate)
         
         # CRITICAL: Score must be strictly between 0 and 1
-        # Map any score <= 0 to 0.001
+        # Map any score <= 0 to 0.1
         if weighted_score <= 0.0:
-            return 0.001
-        # Map any score >= 1 to 0.999
+            return 0.1
+        # Map any score >= 1 to 0.9
         if weighted_score >= 1.0:
-            return 0.999
+            return 0.9
         
-        # Ensure within (0,1) exclusive with small buffer
-        return max(0.001, min(0.999, weighted_score))
+        # Round to 1 decimal place and ensure between 0.1 and 0.9
+        rounded_score = round(weighted_score, 1)
+        
+        # Ensure never 0.0 or 1.0
+        if rounded_score <= 0.0:
+            return 0.1
+        if rounded_score >= 1.0:
+            return 0.9
+        
+        return rounded_score
     
     def get_detailed_report(self) -> GradingResult:
         """Get detailed grading report"""
